@@ -1,0 +1,357 @@
+<!-- Heather Day — Virtual Sweater Quiz (Personal Friend Edition)
+Single-file HTML/CSS/JS app — save as: heather-sweater.html and open in any browser.
+
+Changes in this edition:
+- UI refreshed with playful colors, larger sweater preview, and winner overlay
+- Removed all "share" features (kept Download SVG so your friend can save their sweater)
+- Stronger confetti burst + sparkles + cute shaking + melodic chime
+- Friendly winner modal with big emoji and a retry button
+
+Edit the `questions` array in the script to personalize the quiz questions for your friend.
+-->
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Heather Day — Virtual Sweater (Friendly)</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Inter:wght@300;400;600&display=swap');
+    :root{--bg1:#FFFBF2;--bg2:#FEE2E2;--card:#fff;--accent:#ff6b81;--muted:#6b7280}
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto; margin:0; background:radial-gradient(circle at 10% 20%, #fff7f8 0%, #fff 30%, #f7fbff 100%); color:#0f172a}
+    .wrap{max-width:1100px;margin:30px auto;padding:18px}
+    .grid{display:grid;grid-template-columns:1fr;gap:18px}
+    @media(min-width:980px){.grid{grid-template-columns:1fr 480px}}
+    .card{background:var(--card);border-radius:16px;padding:18px;box-shadow:0 12px 40px rgba(15,23,42,0.06)}
+
+    header{display:flex;gap:14px;align-items:center}
+    .logo{width:64px;height:64px;border-radius:14px;background:linear-gradient(135deg,#ff9aa2,#ffd1dc);display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-family:'Baloo 2',cursive;font-size:28px}
+    h1{margin:0;font-size:22px;font-family:'Baloo 2',cursive}
+    p.lead{margin:6px 0 0;color:var(--muted);font-size:13px}
+
+    .top-controls{display:flex;gap:10px;align-items:center;margin-top:14px}
+    input[type=text]{padding:10px 12px;border-radius:12px;border:1px solid #f0e6e9;background:#fff;min-width:160px;box-shadow:inset 0 2px 6px rgba(0,0,0,0.03)}
+    select, input[type=color]{padding:8px;border-radius:10px;border:1px solid #f0e6e9}
+    button{background:var(--accent);color:white;border:none;padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:600}
+    button.ghost{background:transparent;color:var(--muted);border:1px solid #f0e6e9}
+
+    .question{margin-top:16px}
+    .choices{display:grid;gap:10px;margin-top:10px}
+    .choice{padding:12px;border-radius:12px;border:1px solid #f3f4f6;background:linear-gradient(180deg,#fff,#fffaf6);text-align:left;cursor:pointer;transition:transform 180ms,box-shadow 180ms}
+    .choice:hover{transform:translateY(-4px);box-shadow:0 10px 30px rgba(255,107,129,0.08)}
+    .choice.selected{box-shadow:0 16px 50px rgba(255,107,129,0.14);border-color:rgba(255,107,129,0.18)}
+
+    .footer-actions{display:flex;gap:8px;align-items:center;margin-top:12px}
+
+    /* right column */
+    .preview{display:flex;flex-direction:column;gap:12px;align-items:center}
+    .svg-wrap{width:360px;height:360px;border-radius:16px;background:linear-gradient(180deg,#fff,#fffaf6);display:flex;align-items:center;justify-content:center;box-shadow:inset 0 2px 0 rgba(255,255,255,0.7);position:relative;overflow:visible}
+    .svg-wrap img{max-width:86%;max-height:86%;transition:transform 0.25s ease}
+
+    /* shake animation for cute wiggle */
+    @keyframes shake { 0%{transform: translateY(0) rotate(0deg)} 20%{transform: translateY(-8px) rotate(-3deg)} 40%{transform: translateY(0) rotate(0deg)} 60%{transform: translateY(-6px) rotate(3deg)} 80%{transform: translateY(0) rotate(0deg)} 100%{transform: translateY(-4px) rotate(-2deg)} }
+    .svg-wrap.win img{animation: shake 900ms cubic-bezier(.2,.9,.3,1.2) infinite}
+
+    /* extra bounce when showing winner overlay */
+    .winner-bounce{animation: bounceY 800ms ease-in-out}
+    @keyframes bounceY {0%{transform:translateY(0)}50%{transform:translateY(-12px)}100%{transform:translateY(0)}}
+
+    /* sparkles */
+    .sparkle{position:absolute;width:12px;height:12px;border-radius:50%;background:radial-gradient(circle at 30% 30%, rgba(255,255,255,1) 0%, rgba(255,255,255,0.8) 25%, rgba(255,255,255,0) 60%);pointer-events:none;opacity:0}
+    @keyframes floatUp { 0%{transform: translateY(0) scale(0.7);opacity:1} 50%{opacity:0.95} 100%{transform: translateY(-60px) scale(1.2);opacity:0} }
+    .sparkle.show{animation: floatUp 900ms ease-out forwards}
+
+    .meta{display:flex;gap:8px;align-items:center}
+    .result{padding:12px;border-radius:12px;background:linear-gradient(90deg,#fff6f8,#fff);border:1px solid #fdecea}
+    .lost{border-color:#eef2f7;background:linear-gradient(90deg,#f8fafc,#fff)}
+
+    .confetti-canvas{position:absolute;pointer-events:none;left:0;top:0;width:100%;height:100%}
+
+    /* Winner overlay */
+    .overlay{position:fixed;left:0;top:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:rgba(6,6,7,0.25);visibility:hidden;opacity:0;transition:opacity 260ms,visibility 260ms}
+    .overlay.show{visibility:visible;opacity:1}
+    .overlay-card{background:linear-gradient(180deg,#fff,#fff7f5);padding:26px;border-radius:20px;box-shadow:0 24px 60px rgba(15,23,42,0.2);text-align:center;width:min(520px,94%)}
+    .overlay h2{font-family:'Baloo 2',cursive;margin:0 0 6px;font-size:28px}
+    .overlay p{margin:0 0 14px;color:var(--muted)}
+
+    footer.small{margin-top:10px;text-align:center;color:var(--muted)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="grid">
+      <div class="card">
+        <header>
+          <div class="logo">♡</div>
+          <div>
+            <h1>I heard no one is giving you sweater so here</h1>
+            <p class="lead">A tiny quiz, a cozy sweater — You made it to Heather Sweater ✨</p>
+          </div>
+        </header>
+
+        <div style="margin-top:14px" class="small">Personalize questions in the script. This version is private — sharing features removed.</div>
+
+        <div class="top-controls">
+          <input id="nameInput" type="text" placeholder="Friend's name (optional)" />
+          <select id="styleSelect">
+            <option value="fair">Fair Isle</option>
+            <option value="cable">Cable Knit</option>
+            <option value="simple">Simple</option>
+          </select>
+          <input id="colorInput" type="color" value="#ef9a9a" title="Sweater color" />
+          <button id="restartBtn" class="ghost">Reset</button>
+        </div>
+
+        <div id="quizArea" class="question card" style="margin-top:16px">
+          <!-- JS renders question here -->
+        </div>
+
+        <div class="footer-actions">
+          <div id="status" class="small">Question 0 / 0</div>
+          <div style="margin-left:auto" class="small">Tip: answer true things — the sweater remembers 😊</div>
+        </div>
+
+      </div>
+
+      <div class="card preview" id="rightCol">
+        <div style="position:relative;width:100%">
+          <canvas id="confetti" class="confetti-canvas"></canvas>
+          <div class="svg-wrap" id="svgWrap" aria-hidden="true">
+            <!-- sweater image/SVG injected here -->
+          </div>
+        </div>
+
+        <div style="width:100%;display:flex;gap:8px;align-items:center;justify-content:space-between">
+          <div class="meta">
+            <div class="small">Status</div>
+            <div id="resultBox" style="margin-left:8px" class="result small">Take the quiz to get a sweater</div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button id="downloadBtn">Download SVG</button>
+          </div>
+        </div>
+
+        <div style="width:100%;margin-top:8px" class="small">If you win you'll see confetti, sparkles and a cute wiggle 💖</div>
+      </div>
+    </div>
+
+    <footer class="small">From Prasan A Little Piece Of Fun</footer>
+  </div>
+
+  <!-- Winner overlay -->
+  <div id="overlay" class="overlay" role="dialog" aria-hidden="true">
+    <div class="overlay-card">
+      <h2>You're cozy now! 🧶</h2>
+      <p id="overlayText">You unlocked the sweater — save it or keep it private!</p>
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:12px">
+        <button id="overlayClose" class="ghost">Close</button>
+        <button id="overlayAgain">Try again</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ------- CONFIGURE QUESTIONS HERE -------
+    const questions = [
+      { q: "How did I used to call you?", choices: ["Ma'lady","Moti","Chasmis"], a: 0 },
+      { q: "What is my bitth month?", choices: ["April","July","December"], a: 1 },
+      { q: "Do you like my company?", choices: ["Yes","NO","I hate your company"], a: 0 },
+    ];
+    // ----------------------------------------
+
+    const quizArea = document.getElementById('quizArea');
+    const status = document.getElementById('status');
+    const svgWrap = document.getElementById('svgWrap');
+    const nameInput = document.getElementById('nameInput');
+    const styleSelect = document.getElementById('styleSelect');
+    const colorInput = document.getElementById('colorInput');
+    const resultBox = document.getElementById('resultBox');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const restartBtn = document.getElementById('restartBtn');
+    const confettiCanvas = document.getElementById('confetti');
+    const overlay = document.getElementById('overlay');
+    const overlayClose = document.getElementById('overlayClose');
+    const overlayAgain = document.getElementById('overlayAgain');
+
+    let current = 0;
+    let answers = Array(questions.length).fill(null);
+    const threshold = Math.ceil(questions.length * 0.6);
+
+    function renderQuestion() {
+      status.textContent = `Question ${current+1} / ${questions.length}`;
+      const Q = questions[current];
+      quizArea.innerHTML = '';
+      const h = document.createElement('div');
+      h.className = 'small';
+      h.style.fontWeight = '700';
+      h.textContent = Q.q;
+      const choices = document.createElement('div');
+      choices.className = 'choices';
+      Q.choices.forEach((c, i) => {
+        const b = document.createElement('div');
+        b.className = 'choice';
+        b.textContent = c;
+        if (answers[current] === i) b.classList.add('selected');
+        b.addEventListener('click', () => { answers[current] = i; renderQuestion(); });
+        choices.appendChild(b);
+      });
+      quizArea.appendChild(h);
+      quizArea.appendChild(choices);
+
+      const actions = document.createElement('div');
+      actions.style.display = 'flex'; actions.style.gap = '8px'; actions.style.marginTop = '14px';
+      const back = document.createElement('button'); back.className = 'ghost'; back.textContent = 'Back';
+      back.disabled = current === 0; back.addEventListener('click', () => { if (current>0) { current--; renderQuestion(); } });
+      const next = document.createElement('button'); next.textContent = (current < questions.length-1) ? 'Next' : 'Finish';
+      next.disabled = answers[current] === null;
+      next.addEventListener('click', () => { if (current < questions.length-1) { current++; renderQuestion(); } else { showResult(); } });
+      actions.appendChild(back); actions.appendChild(next);
+      quizArea.appendChild(actions);
+    }
+
+    function score() { return answers.reduce((s, a, i) => s + ((a === questions[i].a) ? 1 : 0), 0); }
+
+    function showResult() {
+      const s = score();
+      const passed = s >= threshold;
+      resultBox.className = passed ? 'result small' : 'result small lost';
+      resultBox.textContent = passed ? `You got ${s} / ${questions.length} — Cozy sweater unlocked!` : `Score: ${s} / ${questions.length} — No sweater this time`;
+      renderSweaterPreview(passed);
+      if (passed) { launchConfetti(150); playChime(); showSparkles(); showOverlay(`${nameInput.value ? nameInput.value + ', ' : ''}you unlocked a sweater!`); }
+      else { stopConfetti(); stopSound(); hideSparkles(); hideOverlay(); }
+    }
+
+    function renderSweaterPreview(passed) {
+      const name = nameInput.value.trim();
+      const color = colorInput.value;
+      const style = styleSelect.value;
+      // provided sweater image filename — place the file next to the HTML
+      const imgFileName = 'Sweater.png';
+
+      if (passed) {
+        // show the uploaded sweater image prominently
+        svgWrap.innerHTML = `<img id="sweaterImg" src="${imgFileName}" alt="sweater"/>`;
+        svgWrap.dataset.svg = '';
+        svgWrap.classList.add('win');
+        svgWrap.classList.add('winner-bounce');
+        // remove existing name tags then add new one if name provided
+        const existingTag = svgWrap.querySelector('.nameTag'); if (existingTag) existingTag.remove();
+        if (name) {
+          const tag = document.createElement('div');
+          tag.className = 'nameTag';
+          tag.style.position = 'absolute';
+          tag.style.bottom = '18px';
+          tag.style.left = '50%';
+          tag.style.transform = 'translateX(-50%)';
+          tag.style.padding = '8px 14px';
+          tag.style.borderRadius = '999px';
+          tag.style.background = 'linear-gradient(90deg, rgba(255,255,255,0.95), rgba(255,255,255,0.88))';
+          tag.style.fontWeight = '700';
+          tag.style.color = '#111';
+          tag.style.boxShadow = '0 8px 30px rgba(15,23,42,0.12)';
+          tag.textContent = name + "'s sweater";
+          svgWrap.appendChild(tag);
+        }
+      } else {
+        // fallback SVG when not passed
+        const width = 360, height = 360;
+        const svg = `
+<svg xmlns='http://www.w3.org/2000/svg' width='${width}' height='${height}' viewBox='0 0 ${width} ${height}'>
+  <defs>
+    <filter id='soft'><feGaussianBlur stdDeviation='1'/></filter>
+  </defs>
+  <rect width='100%' height='100%' fill='none'/>
+  <g transform='translate(10,10)'>
+    <rect x='30' y='60' rx='14' ry='14' width='300' height='160' fill='${color}' stroke='#222' stroke-opacity='0.06'/>
+    <rect x='0' y='40' width='40' height='40' rx='12' fill='${color}' stroke='#222' stroke-opacity='0.06'/>
+    <rect x='320' y='40' width='40' height='40' rx='12' fill='${color}' stroke='#222' stroke-opacity='0.06'/>
+    ${ knitPatternSVG(style) }
+    ${ name ? `<text x='180' y='160' font-size='20' font-family='sans-serif' text-anchor='middle' fill='#111'>${escapeXML(name)}</text>` : '' }
+  </g>
+</svg>`;
+        svgWrap.innerHTML = svg;
+        svgWrap.dataset.svg = svg;
+        svgWrap.classList.remove('win');
+        const existingTag = svgWrap.querySelector('.nameTag'); if (existingTag) existingTag.remove();
+      }
+    }
+
+    function knitPatternSVG(style) {
+      if (style === 'fair') {
+        let blocks = '';
+        for (let r=0;r<6;r++){
+          for (let c=0;c<10;c++){
+            blocks += `<rect x='${40 + c*28}' y='${90 + r*20}' width='18' height='12' rx='2' fill='rgba(255,255,255,0.14)'/>`;
+          }
+        }
+        return `<g transform='translate(0,0)'>${blocks}</g>`;
+      } else if (style === 'cable'){
+        return `<g><path d='M80 140 c10 -30 20 -30 30 0 s20 30 30 0 s20 -30 30 0' stroke='rgba(255,255,255,0.18)' stroke-width='8' fill='none' stroke-linecap='round'/></g>`;
+      } else {
+        return `<g>${Array.from({length:10}).map((_,i)=>`<rect x='${60+i*26}' y='120' width='12' height='28' rx='3' fill='rgba(255,255,255,0.08)'/>`).join('')}</g>`;
+      }
+    }
+
+    function escapeXML(s){ return s.replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&apos;"}[c]; }); }
+
+    downloadBtn.addEventListener('click', ()=>{
+      const svg = svgWrap.dataset.svg;
+      if (!svg) { alert('No generated SVG to download — if you unlocked the real sweater image, save the PNG from the preview area instead.'); return; }
+      const name = (nameInput.value.trim() || 'my') + '_sweater.svg';
+      const blob = new Blob([svg], {type: 'image/svg+xml;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    });
+
+    restartBtn.addEventListener('click', ()=>{ current=0; answers = Array(questions.length).fill(null); renderQuestion(); resultBox.textContent='Take the quiz to get a sweater'; svgWrap.innerHTML=''; stopConfetti(); stopSound(); hideSparkles(); hideOverlay(); svgWrap.classList.remove('win'); svgWrap.classList.remove('winner-bounce'); });
+
+    // ----- Confetti (improved burst) -----
+    const ctx = confettiCanvas.getContext('2d');
+    let confettiPieces = [];
+    let confettiRunning = false;
+
+    function resizeCanvas(){ confettiCanvas.width = confettiCanvas.offsetWidth; confettiCanvas.height = confettiCanvas.offsetHeight; }
+    window.addEventListener('resize', resizeCanvas); resizeCanvas();
+
+    function launchConfetti(amount=120){ if (confettiRunning) return; confettiRunning=true; confettiPieces=[]; for(let i=0;i<amount;i++){ confettiPieces.push({x: confettiCanvas.width/2 + (Math.random()-0.5)*200, y: confettiCanvas.height/2 + (Math.random()-0.5)*120, r: (Math.random()*8)+4, rot: Math.random()*360, color:`hsl(${Math.floor(Math.random()*360)},80%,60%)`, velY: -6 - Math.random()*8, velX: -8 + Math.random()*16, spin: -0.2 + Math.random()*0.4}); } runConfetti(); }
+    function runConfetti(){ if (!confettiRunning) return; ctx.clearRect(0,0,confettiCanvas.width, confettiCanvas.height); for(let p of confettiPieces){ p.velY += 0.3; p.x += p.velX; p.y += p.velY; p.rot += p.spin; ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot); ctx.fillStyle = p.color; ctx.fillRect(-p.r/2, -p.r/2, p.r, p.r*1.6); ctx.restore(); }
+      confettiPieces = confettiPieces.filter(p=>p.y < confettiCanvas.height+60);
+      if (confettiPieces.length===0){ confettiRunning=false; } else { requestAnimationFrame(runConfetti); }
+    }
+    function stopConfetti(){ confettiRunning=false; confettiPieces=[]; ctx.clearRect(0,0,confettiCanvas.width, confettiCanvas.height); }
+
+    // ----- Sparkles -----
+    let sparkleEls = [];
+    function showSparkles(){ hideSparkles(); const count = 22; for(let i=0;i<count;i++){ const s = document.createElement('div'); s.className='sparkle'; const left = Math.random()*70 + 15; const top = Math.random()*60 + 10; s.style.left = left + '%'; s.style.top = top + '%'; s.style.width = (6+Math.random()*12)+'px'; s.style.height = s.style.width; svgWrap.appendChild(s); setTimeout(()=> s.classList.add('show'), 20 + Math.random()*300); setTimeout(()=> { s.remove(); }, 1500); sparkleEls.push(s); } }
+    function hideSparkles(){ for(const s of sparkleEls){ s.remove(); } sparkleEls = []; }
+
+    // ----- Sound (WebAudio) - melodic chime sequence -----
+    let audioCtx = null; let chimeNodes = [];
+    function ensureAudioCtx(){ if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    function playChime(){ try{ ensureAudioCtx(); const now = audioCtx.currentTime; const freqs = [880, 660, 990]; // a short arpeggio
+        chimeNodes = freqs.map((f,i) => { const o = audioCtx.createOscillator(); const g = audioCtx.createGain(); o.type='sine'; o.frequency.setValueAtTime(f, now + i*0.08); g.gain.setValueAtTime(0.001, now + i*0.08); o.connect(g); g.connect(audioCtx.destination); o.start(now + i*0.08); g.gain.exponentialRampToValueAtTime(0.45, now + i*0.08 + 0.05); g.gain.exponentialRampToValueAtTime(0.001, now + i*0.08 + 0.9); setTimeout(()=>{ try{ o.stop(); o.disconnect(); g.disconnect(); }catch(e){} }, 1200 + i*80); return {o,g}; }); }catch(e){} }
+    function stopSound(){ try{ for(const n of chimeNodes){ if(n.o){ n.o.stop(); n.o.disconnect(); } } chimeNodes=[];}catch(e){} }
+
+    // Winner overlay control
+    function showOverlay(text){ overlay.querySelector('h2').textContent = 'Cozy! 🧶'; overlay.querySelector('#overlayText').textContent = text; overlay.classList.add('show'); }
+    function hideOverlay(){ overlay.classList.remove('show'); }
+
+    overlayClose.addEventListener('click', ()=>{ hideOverlay(); });
+    overlayAgain.addEventListener('click', ()=>{ hideOverlay(); current=0; answers = Array(questions.length).fill(null); renderQuestion(); resultBox.textContent='Take the quiz to get a sweater'; svgWrap.innerHTML=''; stopConfetti(); stopSound(); hideSparkles(); svgWrap.classList.remove('win'); svgWrap.classList.remove('winner-bounce'); });
+
+    // initial render
+    renderQuestion();
+
+    // accessibility: keyboard navigation for choices
+    document.addEventListener('keydown', (e)=>{
+      if (e.key==='Enter'){
+        const buttons = quizArea.querySelectorAll('button'); if (buttons.length){ buttons[buttons.length-1].click(); }
+      }
+    });
+
+  </script>
+</body>
+</html>
